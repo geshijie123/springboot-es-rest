@@ -17,8 +17,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -52,7 +56,17 @@ public class DemoController {
     @RequestMapping("add")
     public Object add() throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(CINEMA_INDEX);
-
+        // 创建mapping
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                            .startObject("local")
+                                .field("type","geo_point")
+                            .endObject()
+                    .endObject()
+                .endObject();
+        System.out.println(mapping.toString());
+        createIndexRequest.mapping("location",mapping);
         restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         FileReader fileReader = new FileReader("B:/home/cinema.json");
@@ -63,7 +77,9 @@ public class DemoController {
         BulkRequest bulkRequest=new BulkRequest(CINEMA_INDEX);
         records.forEach(one->{
             IndexRequest oneIndex=new IndexRequest(CINEMA_INDEX);
-            oneIndex.source(JSON.toJSONString(one), XContentType.JSON);
+            JSONObject parse = JSONObject.parseObject(one.toString());
+            parse.put("local",parse.getBigDecimal("lat")+","+parse.getBigDecimal("lon"));
+            oneIndex.source(parse.toJSONString(), XContentType.JSON);
             bulkRequest.add(oneIndex);
         });
         bulkRequest.timeout(TimeValue.timeValueMillis(1L));
